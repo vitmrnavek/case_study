@@ -1,0 +1,8 @@
+psycopg2-binary
+SQLAlchemy
+google-cloud-bigquery
+pandas 
+pydantic
+google-cloud-logging
+pyyaml
+db-dtypes
