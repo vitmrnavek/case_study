@@ -1,0 +1,20 @@
+databases:
+  postgres_datamancers:
+    type: postgres
+    connection_params:
+      host: 127.0.0.1
+      port: 5432
+      database: postgres
+      user: admin
+      password: *******
+
+  datamancers:
+    type: bigquery
+    connection_params:
+      project_id: example-project
+      location: EU
+      credentials_path: local/path/to/service-account.json
+
+metadata_path: data/metadata.yaml
+logger_project_id: example-project
+logger_credentials_path: local/path/to/service-account.json

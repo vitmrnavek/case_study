@@ -6,3 +6,10 @@ pydantic
 google-cloud-logging
 pyyaml
 db-dtypes
+duckdb>=0.9.2
+duckdb-engine
+langchain
+langchain_community
+openai
+python-dotenv
+ipywidgets
