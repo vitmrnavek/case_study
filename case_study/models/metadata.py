@@ -11,6 +11,16 @@ logger = get_logger("metadata")
 
 
 class Column(BaseModel):
+    """Model representing a database column.
+
+    Attributes:
+        column_name: Name of the column
+        column_comment: Optional comment describing the column
+        data_type: SQL data type of the column
+        is_nullable: Whether the column can contain NULL values
+        column_default: Default value for the column
+    """
+
     column_name: str
     column_comment: str = Field(default="")
     data_type: str
@@ -19,6 +29,17 @@ class Column(BaseModel):
 
 
 class Table(BaseModel):
+    """Model representing a database table.
+
+    Attributes:
+        table_name: Name of the table
+        schema_name: Name of the schema containing the table
+        table_comment: Optional comment describing the table
+        ai_annotation: Optional AI-generated annotation about the table
+        rows_count: Number of rows in the table
+        columns: List of columns in the table
+    """
+
     table_name: str
     schema_name: str = Field(default="public")  # Default schema for PostgreSQL
     table_comment: str = Field(default="")
@@ -28,11 +49,25 @@ class Table(BaseModel):
 
     @property
     def full_name(self) -> str:
-        """Returns the full table name including schema"""
+        """Get the full table name including schema.
+
+        Returns:
+            str: Full table name in format 'schema.table'
+        """
         return f"{self.schema_name}.{self.table_name}"
 
 
 class Schema(BaseModel):
+    """Model representing a database schema.
+
+    Attributes:
+        database_name: Name of the database
+        database_type: Type of database (e.g., 'postgres', 'bigquery')
+        tables: List of tables in the schema
+        cache_timestamp: When the schema was last cached
+        cache_valid_days: How long the cache remains valid
+    """
+
     database_name: str
     database_type: str
     tables: List[Table]
@@ -41,6 +76,14 @@ class Schema(BaseModel):
 
     @classmethod
     def from_json(cls, json_data: Dict) -> "Schema":
+        """Create a Schema instance from JSON data.
+
+        Args:
+            json_data: Dictionary containing schema information
+
+        Returns:
+            Schema: New Schema instance with parsed data
+        """
         # Create Schema object with timestamp if available
         return cls(
             database_name=json_data["database_name"],
@@ -87,15 +130,14 @@ class Schema(BaseModel):
 
     @classmethod
     def load(cls, path: str, force_refresh: bool = False) -> Dict:
-        """
-        Load schema from cache file with timestamp validation
+        """Load schema from cache file with timestamp validation.
 
         Args:
             path: Path to the cache file
             force_refresh: If True, ignore cache validity and force a refresh
 
         Returns:
-            Dictionary containing database schemas
+            Dict: Dictionary containing database schemas
         """
         if not os.path.exists(path):
             return {"databases": []}
@@ -124,8 +166,7 @@ class Schema(BaseModel):
         return cache_data
 
     def save(self, path: str):
-        """
-        Save schema to cache file with updated timestamp
+        """Save schema to cache file with updated timestamp.
 
         Args:
             path: Path to the cache file
@@ -171,8 +212,7 @@ class Schema(BaseModel):
         fetch_callback: Callable[[], "Schema"],
         force_refresh: bool = False,
     ) -> "Schema":
-        """
-        Get schema from cache or fetch fresh data if cache is invalid
+        """Get schema from cache or fetch fresh data if cache is invalid.
 
         Args:
             path: Path to the cache file
@@ -181,7 +221,7 @@ class Schema(BaseModel):
             force_refresh: If True, ignore cache and force fresh fetch
 
         Returns:
-            Schema object
+            Schema: Schema object for the requested database
         """
         cache_data = cls.load(path, force_refresh)
         # Set up logging for cache operations
@@ -208,18 +248,32 @@ class Schema(BaseModel):
 
 
 class Databases(BaseModel):
+    """Model representing a collection of database schemas.
+
+    Attributes:
+        databases: List of Schema objects
+        path: Path to the YAML file storing the schemas
+    """
+
     databases: List[Schema]
     path: str = Field(default="databases.yaml")
 
     @classmethod
     def from_yaml(cls, file_path: str) -> "Databases":
+        """Create a Databases instance from a YAML file.
+
+        Args:
+            file_path: Path to the YAML file
+
+        Returns:
+            Databases: New Databases instance with loaded data
+        """
         with open(file_path, "r") as f:
             file_output = yaml.safe_load(f)
         return cls.from_json(file_output)
 
     def to_yaml(self, file_path: str = None) -> None:
-        """
-        Save the databases information to a YAML file.
+        """Save the databases information to a YAML file.
 
         Args:
             file_path: Optional path to save the YAML file. If not provided, uses the default path.
@@ -231,12 +285,13 @@ class Databases(BaseModel):
             yaml.dump(self.model_dump(), f, default_flow_style=False)
 
     def update_database(self, schema: Schema) -> None:
-        """
-        Update an existing database schema or add a new one if it doesn't exist.
-        Preserves existing values if the new schema has empty or missing values.
+        """Update an existing database schema or add a new one.
 
         Args:
             schema: The Schema object to update or add
+
+        Note:
+            Preserves existing values if the new schema has empty or missing values.
         """
         # Check if database already exists
         for i, db in enumerate(self.databases):
@@ -255,67 +310,66 @@ class Databases(BaseModel):
         # If we get here, the database doesn't exist, so add it
         self.databases.append(schema)
 
+    def _update_dict_recursively(self, old_dict: dict, new_dict: dict) -> dict:
+        """Recursively update a dictionary while preserving existing values.
 
-def update_dict_recursively(old_dict: dict, new_dict: dict) -> dict:
-    """
-    Recursively update a dictionary with values from a new dictionary.
-    Only overwrites values that are not empty or None in the new dictionary.
+        Args:
+            old_dict: Original dictionary
+            new_dict: Dictionary with new values
 
-    Args:
-        old_dict: The original dictionary to update
-        new_dict: The new dictionary with values to update
+        Returns:
+            dict: Updated dictionary with preserved values
+        """
+        result = old_dict.copy()
 
-    Returns:
-        The updated dictionary
-    """
-    result = old_dict.copy()
+        for key, new_value in new_dict.items():
+            # If key doesn't exist in old dict, add it
+            if key not in result:
+                result[key] = new_value
+                continue
 
-    for key, new_value in new_dict.items():
-        # If key doesn't exist in old dict, add it
-        if key not in result:
-            result[key] = new_value
-            continue
+            # If the value is a dictionary, recursively update
+            if isinstance(new_value, dict) and isinstance(result[key], dict):
+                result[key] = self._update_dict_recursively(result[key], new_value)
+            # If the value is a list of dictionaries, update each item
+            elif isinstance(new_value, list) and isinstance(result[key], list):
+                # For lists, we need a way to match items - using first field as identifier if possible
+                if all(isinstance(item, dict) for item in new_value + result[key]):
+                    # Create a map of existing items by their first key (assuming it's an identifier)
+                    if len(result[key]) > 0 and len(new_value) > 0:
+                        id_key = next(iter(result[key][0].keys()))
+                        existing_map = {
+                            item.get(id_key): item
+                            for item in result[key]
+                            if id_key in item
+                        }
 
-        # If the value is a dictionary, recursively update
-        if isinstance(new_value, dict) and isinstance(result[key], dict):
-            result[key] = update_dict_recursively(result[key], new_value)
-        # If the value is a list of dictionaries, update each item
-        elif isinstance(new_value, list) and isinstance(result[key], list):
-            # For lists, we need a way to match items - using first field as identifier if possible
-            if all(isinstance(item, dict) for item in new_value + result[key]):
-                # Create a map of existing items by their first key (assuming it's an identifier)
-                if len(result[key]) > 0 and len(new_value) > 0:
-                    id_key = next(iter(result[key][0].keys()))
-                    existing_map = {
-                        item.get(id_key): item for item in result[key] if id_key in item
-                    }
+                        # Update existing items and add new ones
+                        updated_list = []
+                        for new_item in new_value:
+                            if id_key in new_item and new_item[id_key] in existing_map:
+                                # Update existing item
+                                updated_item = self._update_dict_recursively(
+                                    existing_map[new_item[id_key]], new_item
+                                )
+                                updated_list.append(updated_item)
+                                del existing_map[new_item[id_key]]
+                            else:
+                                # Add new item
+                                updated_list.append(new_item)
 
-                    # Update existing items and add new ones
-                    updated_list = []
-                    for new_item in new_value:
-                        if id_key in new_item and new_item[id_key] in existing_map:
-                            # Update existing item
-                            updated_item = update_dict_recursively(
-                                existing_map[new_item[id_key]], new_item
-                            )
-                            updated_list.append(updated_item)
-                            del existing_map[new_item[id_key]]
-                        else:
-                            # Add new item
-                            updated_list.append(new_item)
-
-                    # Add remaining existing items
-                    updated_list.extend(existing_map.values())
-                    result[key] = updated_list
+                        # Add remaining existing items
+                        updated_list.extend(existing_map.values())
+                        result[key] = updated_list
+                    else:
+                        # If either list is empty, use the new list
+                        result[key] = new_value
                 else:
-                    # If either list is empty, use the new list
-                    result[key] = new_value
-            else:
-                # For non-dict lists, replace if new value is not empty
-                if new_value:
-                    result[key] = new_value
-        # For other types, only update if the new value is not empty/None
-        elif new_value is not None and new_value != "":
-            result[key] = new_value
+                    # For non-dict lists, replace if new value is not empty
+                    if new_value:
+                        result[key] = new_value
+            # For other types, only update if the new value is not empty/None
+            elif new_value is not None and new_value != "":
+                result[key] = new_value
 
-    return result
+        return result

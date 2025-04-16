@@ -18,7 +18,11 @@ logger = get_logger("duckdb-integrator")
 
 class DuckDBIntegrator:
     def __init__(self, config_path=DUCKDB_CONFIG["config_path"]):
-        """Initialize the DuckDB integrator with configuration."""
+        """Initialize the DuckDB integrator with configuration.
+
+        Args:
+            config_path: Path to the configuration file
+        """
         logger.info(f"Initializing DuckDB integrator with config path: {config_path}")
 
         # Use the configured database path for permanent storage
@@ -49,7 +53,17 @@ class DuckDBIntegrator:
         logger.info("DuckDB integrator initialization completed")
 
     def _load_config(self, config_path):
-        """Load configuration from YAML file."""
+        """Load configuration from YAML file.
+
+        Args:
+            config_path: Path to the YAML configuration file
+
+        Returns:
+            dict: Loaded configuration data
+
+        Raises:
+            Exception: If configuration loading fails
+        """
         logger.info(f"Loading configuration from {config_path}")
         try:
             with open(config_path, "r") as f:
@@ -61,7 +75,11 @@ class DuckDBIntegrator:
             raise
 
     def _setup_logging_table(self):
-        """Create table for storing query performance logs."""
+        """Create table for storing query performance logs.
+
+        Raises:
+            Exception: If table creation fails
+        """
         logger.info("Setting up query logging table")
         try:
             self.duck_conn.execute(
@@ -86,7 +104,14 @@ class DuckDBIntegrator:
     def _log_query_performance(
         self, source: str, query: str, stats: Dict, error: str = None
     ):
-        """Log query performance metrics."""
+        """Log query performance metrics.
+
+        Args:
+            source: Source database type ('postgres', 'bigquery', or 'duckdb')
+            query: SQL query that was executed
+            stats: Dictionary containing performance statistics
+            error: Optional error message if query failed
+        """
         logger.info(f"Logging query performance for source: {source}")
         try:
             self.duck_conn.execute(
@@ -111,7 +136,14 @@ class DuckDBIntegrator:
             logger.error(f"Failed to log query performance: {str(e)}")
 
     def _setup_connections(self):
-        """Setup all database connections."""
+        """Setup all database connections.
+
+        Sets up PostgreSQL and BigQuery connections based on configuration.
+        Installs and loads necessary extensions.
+
+        Raises:
+            Exception: If connection setup fails
+        """
         logger.info("Setting up database connections")
 
         # Install and load PostgreSQL extension
@@ -175,7 +207,18 @@ class DuckDBIntegrator:
     def get_query_logs(
         self, start_time: datetime = None, end_time: datetime = None
     ) -> pd.DataFrame:
-        """Retrieve query performance logs within the specified time range."""
+        """Retrieve query performance logs within the specified time range.
+
+        Args:
+            start_time: Optional start time to filter logs
+            end_time: Optional end time to filter logs
+
+        Returns:
+            pd.DataFrame: Query logs including performance metrics
+
+        Raises:
+            Exception: If log retrieval fails
+        """
         logger.info(
             f"Retrieving query logs (start_time={start_time}, end_time={end_time})"
         )
@@ -202,8 +245,7 @@ class DuckDBIntegrator:
             raise
 
     def _validate_bigquery_table(self, project: str, dataset: str, table: str) -> bool:
-        """
-        Validate that a BigQuery table exists and is accessible.
+        """Validate that a BigQuery table exists and is accessible.
 
         Args:
             project: BigQuery project ID
@@ -228,8 +270,7 @@ class DuckDBIntegrator:
             raise ValueError(f"Error validating BigQuery table '{table_ref}': {str(e)}")
 
     def _validate_postgres_table(self, schema: str, table: str) -> bool:
-        """
-        Validate that a PostgreSQL table exists and is accessible.
+        """Validate that a PostgreSQL table exists and is accessible.
 
         Args:
             schema: PostgreSQL schema name
@@ -268,15 +309,14 @@ class DuckDBIntegrator:
             )
 
     def _parse_table_reference(self, ref: str, source: str) -> Tuple[str, ...]:
-        """
-        Parse and validate a table reference string.
+        """Parse a table reference string into its components.
 
         Args:
-            ref: Table reference string
-            source: 'bigquery' or 'postgres'
+            ref: Table reference string (e.g. 'project.dataset.table' for BigQuery)
+            source: Source database type ('postgres' or 'bigquery')
 
         Returns:
-            Tuple of table reference parts
+            Tuple[str, ...]: Components of the table reference
 
         Raises:
             ValueError: If reference format is invalid
@@ -305,7 +345,6 @@ class DuckDBIntegrator:
         The query should use the following special syntax:
         - BIGQUERY('project.dataset.table') to reference BigQuery tables
         - POSTGRES('schema.table') to reference PostgreSQL tables
-
         Example:
         WITH
             bq_data AS (
@@ -322,6 +361,15 @@ class DuckDBIntegrator:
                 JOIN pg_data p ON b.id = p.id
             )
         SELECT * FROM combined;
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            pd.DataFrame: Query results
+
+        Raises:
+            Exception: If query execution fails
         """
         start_time = datetime.now()
 
@@ -472,7 +520,18 @@ class DuckDBIntegrator:
             raise
 
     def _find_matching_parenthesis(self, text, start):
-        """Find the matching closing parenthesis."""
+        """Find the matching closing parenthesis.
+
+        Args:
+            text: Text to search in
+            start: Starting position of the opening parenthesis
+
+        Returns:
+            int: Position of the matching closing parenthesis
+
+        Raises:
+            ValueError: If no matching parenthesis is found
+        """
         count = 1
         i = start + 1
         while i < len(text) and count > 0:

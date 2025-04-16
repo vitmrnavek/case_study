@@ -29,11 +29,24 @@ def determine_join_strategy(
     table1_sample_data: Optional[Dict] = None,
     table2_sample_data: Optional[Dict] = None,
 ) -> Dict:
-    """
-    Uses LangChain to determine the optimal join strategy for two tables based on context.
+    """Determine the optimal join strategy between two tables using LangChain and GPT-4.
+
+    Args:
+        table1_description: Description of the first table including schema and metadata
+        table2_description: Description of the second table including schema and metadata
+        use_case_description: Description of the intended use case for joining the tables
+        table1_sample_data: Optional sample data from the first table
+        table2_sample_data: Optional sample data from the second table
 
     Returns:
-        Dict: JSON structured output containing join strategy details
+        Dict: JSON structured output containing join strategy details including:
+            - join_strategy: Type of join to use
+            - left_table: Name of the left table
+            - right_table: Name of the right table
+            - left_join_columns: Columns to join on from left table
+            - right_join_columns: Columns to join on from right table
+            - explanation: Detailed explanation of the recommendation
+            - additional_considerations: Data quality and performance considerations
     """
 
     prompt_template = """You are a data expert helping to determine the optimal join strategy between two tables.
@@ -123,7 +136,11 @@ def determine_join_strategy(
 
 class SmartJoinBuilder:
     def __init__(self, config_path=DATABASE_CONFIG_PATH):
-        """Initialize with both traditional and DuckDB approaches"""
+        """Initialize SmartJoinBuilder with database connections and DuckDB integrator.
+
+        Args:
+            config_path: Path to the database configuration file
+        """
         logger.info(f"Initializing SmartJoinBuilder with config path: {config_path}")
         # Initialize DuckDB integrator
         self.duck_integrator = DuckDBIntegrator(config_path)
@@ -136,7 +153,11 @@ class SmartJoinBuilder:
         logger.info("SmartJoinBuilder initialized successfully")
 
     def initialize_connections(self, selected_connections: List[str]):
-        """Initialize all database connections and fetch their schemas"""
+        """Initialize database connections and fetch their schemas.
+
+        Args:
+            selected_connections: List of connection names to initialize
+        """
         logger.info(f"Initializing connections for: {selected_connections}")
         initialized_count = 0
 
@@ -192,7 +213,17 @@ class SmartJoinBuilder:
         )
 
     def _format_table_description(self, table: TableIdentifier) -> str:
-        """Format table metadata into a description for the AI advisor"""
+        """Format table metadata into a description for the AI advisor.
+
+        Args:
+            table: TableIdentifier object containing table information
+
+        Returns:
+            str: Formatted description of the table including columns and metadata
+
+        Raises:
+            ValueError: If the table is not found in the schema
+        """
         logger.info(f"Formatting table description for {table.full_name}")
         db = self.databases[table.connection_name]
         table_schema = None
@@ -230,7 +261,16 @@ class SmartJoinBuilder:
     def suggest_join(
         self, table1: TableIdentifier, table2: TableIdentifier, use_case: str
     ) -> Dict:
-        """Get join recommendation from AI advisor with sample data"""
+        """Get join recommendation from AI advisor with sample data.
+
+        Args:
+            table1: TableIdentifier for the first table
+            table2: TableIdentifier for the second table
+            use_case: Description of the intended use case for joining the tables
+
+        Returns:
+            Dict: Join recommendation including strategy and implementation details
+        """
         logger.info(
             f"Generating join suggestion for tables: {table1.full_name} and {table2.full_name}"
         )
@@ -305,7 +345,16 @@ class SmartJoinBuilder:
         table1: TableIdentifier,
         table2: TableIdentifier,
     ) -> str:
-        """Construct DuckDB-compatible query based on the join recommendation"""
+        """Construct a DuckDB query based on the join recommendation.
+
+        Args:
+            join_recommendation: Dictionary containing join strategy and details
+            table1: TableIdentifier for the first table
+            table2: TableIdentifier for the second table
+
+        Returns:
+            str: DuckDB SQL query implementing the recommended join
+        """
         logger.info("Constructing DuckDB query from join recommendation")
         join_type = join_recommendation["join_strategy"]
         logger.info(f"Join type: {join_type}")
@@ -349,7 +398,14 @@ class SmartJoinBuilder:
         return query
 
     def execute_join(self, query: str) -> pd.DataFrame:
-        """Execute the join query using DuckDB"""
+        """Execute a join query using DuckDB.
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            pd.DataFrame: Result of the join operation
+        """
         logger.info("Executing join query")
         try:
             result = self.duck_integrator.execute_analysis(query)
@@ -364,7 +420,15 @@ class SmartJoinBuilder:
     def get_performance_logs(
         self, start_time: datetime = None, end_time: datetime = None
     ) -> pd.DataFrame:
-        """Get query performance logs from DuckDB integrator"""
+        """Retrieve query performance logs for a specific time range.
+
+        Args:
+            start_time: Optional start time to filter logs
+            end_time: Optional end time to filter logs
+
+        Returns:
+            pd.DataFrame: Performance logs including query details and execution metrics
+        """
         logger.info(
             f"Retrieving performance logs (start_time={start_time}, end_time={end_time})"
         )

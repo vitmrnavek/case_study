@@ -21,6 +21,16 @@ logger = get_logger("database-queries")
 
 @dataclass
 class PostgresConnectionParams:
+    """Parameters for PostgreSQL database connection.
+
+    Attributes:
+        host: Database host address
+        port: Database port number
+        database: Database name
+        user: Username for authentication
+        password: Password for authentication
+    """
+
     host: str
     port: int
     database: str
@@ -30,6 +40,14 @@ class PostgresConnectionParams:
 
 @dataclass
 class BigQueryConnectionParams:
+    """Parameters for BigQuery database connection.
+
+    Attributes:
+        project_id: Google Cloud project ID
+        location: BigQuery dataset location
+        credentials_path: Path to service account credentials file
+    """
+
     project_id: str
     location: str
     credentials_path: str
@@ -37,11 +55,29 @@ class BigQueryConnectionParams:
 
 @dataclass
 class ConnectionInfo:
+    """Information about a database connection.
+
+    Attributes:
+        type: Database type ('postgres' or 'bigquery')
+        connection_params: Connection parameters specific to the database type
+    """
+
     type: str
     connection_params: Union[PostgresConnectionParams, BigQueryConnectionParams]
 
     @classmethod
     def from_dict(cls, data: Dict) -> "ConnectionInfo":
+        """Create ConnectionInfo instance from dictionary data.
+
+        Args:
+            data: Dictionary containing connection information
+
+        Returns:
+            ConnectionInfo: New instance with parsed connection parameters
+
+        Raises:
+            ValueError: If database type is not supported
+        """
         conn_type = data["type"].lower()
         params = data["connection_params"]
 
@@ -57,6 +93,11 @@ class ConnectionInfo:
 
 class ConnectionConfig:
     def __init__(self, config_path: Union[str, Path] = DATABASE_CONFIG_PATH):
+        """Initialize connection configuration.
+
+        Args:
+            config_path: Path to the configuration file
+        """
         logger.info(f"Initializing ConnectionConfig with path: {config_path}")
         self.config_path = Path(config_path)
         self.connections: Dict[str, ConnectionInfo] = {}
@@ -65,7 +106,12 @@ class ConnectionConfig:
         logger.info("ConnectionConfig initialization completed")
 
     def _load_config(self):
-        """Load and validate configuration from YAML file"""
+        """Load and validate configuration from YAML file.
+
+        Raises:
+            FileNotFoundError: If configuration file is not found
+            ValueError: If configuration is invalid
+        """
         if not self.config_path.exists():
             logger.error(f"Configuration file not found: {self.config_path}")
             raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
@@ -90,7 +136,17 @@ class ConnectionConfig:
                 )
 
     def get_connection(self, name: str) -> ConnectionInfo:
-        """Get connection information by name"""
+        """Get connection information by name.
+
+        Args:
+            name: Name of the connection
+
+        Returns:
+            ConnectionInfo: Connection information
+
+        Raises:
+            KeyError: If connection name is not found
+        """
         logger.info(f"Retrieving connection info for: {name}")
         if name not in self.connections:
             logger.error(f"Connection '{name}' not found in configuration")
@@ -98,7 +154,11 @@ class ConnectionConfig:
         return self.connections[name]
 
     def list_connections(self) -> List[str]:
-        """List all available connection names"""
+        """List all available connection names.
+
+        Returns:
+            List[str]: List of connection names
+        """
         connections = list(self.connections.keys())
         logger.info(f"Available connections: {connections}")
         return connections
@@ -106,12 +166,26 @@ class ConnectionConfig:
     def get_connection_params(
         self, name: str
     ) -> Union[PostgresConnectionParams, BigQueryConnectionParams]:
-        """Get connection parameters for a specific connection"""
+        """Get connection parameters for a specific connection.
+
+        Args:
+            name: Name of the connection
+
+        Returns:
+            Union[PostgresConnectionParams, BigQueryConnectionParams]: Connection parameters
+        """
         logger.info(f"Retrieving connection parameters for: {name}")
         return self.get_connection(name).connection_params
 
     def validate(self) -> bool:
-        """Validate the entire configuration"""
+        """Validate the entire configuration.
+
+        Returns:
+            bool: True if configuration is valid
+
+        Raises:
+            ValueError: If configuration is invalid
+        """
         logger.info("Validating configuration")
         for conn_name, conn_info in self.connections.items():
             logger.info(f"Validating connection: {conn_name}")
@@ -161,7 +235,11 @@ class ConnectionConfig:
         return True
 
     def to_dict(self) -> Dict:
-        """Convert configuration to dictionary format"""
+        """Convert configuration to dictionary format.
+
+        Returns:
+            Dict: Configuration as dictionary
+        """
         logger.info("Converting configuration to dictionary format")
         config = {}
         if self.schema_path:
@@ -175,7 +253,14 @@ class ConnectionConfig:
         return config
 
     def save(self, path: Optional[Union[str, Path]] = None):
-        """Save configuration to YAML file"""
+        """Save configuration to YAML file.
+
+        Args:
+            path: Optional path to save configuration file. Uses default if not provided.
+
+        Raises:
+            Exception: If saving fails
+        """
         save_path = Path(path) if path else self.config_path
         logger.info(f"Saving configuration to: {save_path}")
         try:
@@ -188,6 +273,13 @@ class ConnectionConfig:
 
 
 class QueryParams(BaseModel):
+    """Parameters for a database query.
+
+    Attributes:
+        columns: List of columns to select
+        table: Table to query from
+    """
+
     columns: List[str]
     table: str
 
@@ -196,6 +288,15 @@ connections = ConnectionConfig()
 
 
 class TableIdentifier(BaseModel):
+    """Identifier for a database table.
+
+    Attributes:
+        connection_name: Name of the database connection
+        database_type: Type of database ('postgres' or 'bigquery')
+        database_name: Name of the database
+        schema_name: Schema name (defaults to 'public' for PostgreSQL)
+        table_name: Name of the table
+    """
 
     connection_name: str
     database_type: str
@@ -204,7 +305,14 @@ class TableIdentifier(BaseModel):
     table_name: str
 
     def get_duckdb_reference(self) -> str:
-        """Get the DuckDB-compatible reference for this table"""
+        """Get the DuckDB-compatible reference for this table.
+
+        Returns:
+            str: DuckDB-compatible table reference
+
+        Raises:
+            ValueError: If database type is not supported
+        """
         if self.database_type == "postgres":
             return f"POSTGRES({self.schema_name}.{self.table_name})"
         elif self.database_type == "bigquery":
@@ -216,12 +324,21 @@ class TableIdentifier(BaseModel):
 
     @property
     def full_name(self) -> str:
-        """Get the full qualified name of the table"""
+        """Get the full qualified name of the table.
+
+        Returns:
+            str: Full table name including connection, database, schema, and table name
+        """
         return f"{self.connection_name}.{self.database_name}.{self.schema_name}.{self.table_name}"
 
 
 class Database:
     def __init__(self, connection_name: str):
+        """Initialize database connection.
+
+        Args:
+            connection_name: Name of the connection to use
+        """
         logger.info(f"Initializing database connection for: {connection_name}")
         self.connection_name = connection_name
         self.connection_params = None
@@ -229,7 +346,14 @@ class Database:
         logger.info("Database initialization completed")
 
     def connect(self, fetch_schema=False):
-        """Connect to the database based on the connection type."""
+        """Connect to the database based on the connection type.
+
+        Args:
+            fetch_schema: Whether to fetch schema information after connecting
+
+        Raises:
+            ValueError: If connection type is not supported
+        """
         logger.info(f"Connecting to database: {self.connection_name}")
         try:
             connection_info = self.config.get_connection(self.connection_name)
@@ -259,7 +383,11 @@ class Database:
             raise
 
     def _connect_postgres(self):
-        """Connect to PostgreSQL database"""
+        """Establish connection to PostgreSQL database.
+
+        Raises:
+            Exception: If connection fails
+        """
         if not isinstance(self.connection_params, PostgresConnectionParams):
             logger.error("Invalid connection parameters for PostgreSQL")
             raise ValueError("Invalid connection parameters for PostgreSQL")
@@ -283,7 +411,11 @@ class Database:
             raise
 
     def _connect_bigquery(self):
-        """Connect to BigQuery database"""
+        """Establish connection to BigQuery database.
+
+        Raises:
+            Exception: If connection fails
+        """
         if not isinstance(self.connection_params, BigQueryConnectionParams):
             logger.error("Invalid connection parameters for BigQuery")
             raise ValueError("Invalid connection parameters for BigQuery")
@@ -306,7 +438,11 @@ class Database:
             raise
 
     def gather_schema(self) -> Dict:
-        """Gather schema information and metadata statistics for tables and columns"""
+        """Gather schema information from the database.
+
+        Returns:
+            Dict: Schema information including tables and columns
+        """
         logger.info("Gathering schema information")
         if not self.connection_params:
             logger.error("Connection parameters are not set")
@@ -331,6 +467,11 @@ class Database:
             raise
 
     def _gather_postgres_schema(self) -> Dict:
+        """Gather schema information from PostgreSQL database.
+
+        Returns:
+            Dict: PostgreSQL schema information
+        """
         schema_data = {
             "tables": [],
             "database_name": self.connection_params.database,
@@ -363,6 +504,15 @@ class Database:
         return schema_data
 
     def get_column_metadata(self, table: str, schema: str = "public") -> List[Dict]:
+        """Get metadata for columns in a table.
+
+        Args:
+            table: Table name
+            schema: Schema name (defaults to 'public')
+
+        Returns:
+            List[Dict]: List of column metadata dictionaries
+        """
         query = f"""
         SELECT
             column_name,
@@ -389,6 +539,11 @@ class Database:
         return result
 
     def _gather_bigquery_schema(self) -> Dict:
+        """Gather schema information from BigQuery database.
+
+        Returns:
+            Dict: BigQuery schema information
+        """
         schema_data = {
             "database_name": self.connection_params.project_id,
             "tables": [],
@@ -430,9 +585,25 @@ class Database:
         return schema_data
 
     def construct_query(self, params: QueryParams) -> str:
+        """Construct a SQL query from query parameters.
+
+        Args:
+            params: Query parameters
+
+        Returns:
+            str: Constructed SQL query
+        """
         return f"SELECT {', '.join(params.columns)} FROM {params.table}"
 
     def fetch_data(self, query: str) -> pd.DataFrame:
+        """Execute a query and fetch results from the database.
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            pd.DataFrame: Query results
+        """
         pass
 
 
@@ -440,6 +611,17 @@ class PostgresDatabase(Database):
     def _construct_log_struct(
         self, cursor: psycopg2.extensions.cursor, df: pd.DataFrame, start_time: float
     ) -> dict:
+        """Construct a logging structure for PostgreSQL query execution.
+
+        Args:
+            cursor: PostgreSQL cursor containing query information
+            df: DataFrame containing query results
+            start_time: Timestamp when query execution started
+
+        Returns:
+            dict: Structured log data including query text, execution time, timestamp,
+                 rows returned, user info, and transaction ID
+        """
         return {
             "query_text": str(cursor.query),
             "execution_time": time.time() - start_time,
@@ -450,6 +632,17 @@ class PostgresDatabase(Database):
         }
 
     def fetch_data(self, query: str) -> pd.DataFrame:
+        """Execute a query and fetch results from PostgreSQL database.
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            pd.DataFrame: Query results as a pandas DataFrame
+
+        Raises:
+            ValueError: If query validation fails
+        """
         try:
             # Validate query with a dry run
             self.connection.autocommit = False
@@ -461,7 +654,6 @@ class PostgresDatabase(Database):
             raise ValueError(f"Query validation failed: {e}")
 
         start_time = time.time()
-        timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(start_time))
 
         # Execute the query for real
         self.cursor.execute(query)
@@ -475,6 +667,14 @@ class PostgresDatabase(Database):
         return df
 
     def get_table_metadata(self, schema: str) -> List[Dict]:
+        """Get metadata for all tables in a PostgreSQL schema.
+
+        Args:
+            schema: Name of the schema to get metadata for
+
+        Returns:
+            List[Dict]: List of dictionaries containing table names and comments
+        """
         query = f"""
         SELECT
             tablename AS table_name,
@@ -489,6 +689,16 @@ class PostgresDatabase(Database):
         return data
 
     def get_column_metadata(self, table: str, schema: str = "public") -> List[Dict]:
+        """Get metadata for all columns in a PostgreSQL table.
+
+        Args:
+            table: Name of the table to get column metadata for
+            schema: Schema name (defaults to 'public')
+
+        Returns:
+            List[Dict]: List of dictionaries containing column metadata including:
+                       name, data type, nullability, default value, and comments
+        """
         query = f"""
         SELECT
             column_name,
@@ -517,6 +727,16 @@ class PostgresDatabase(Database):
 
 class BigQueryDatabase(Database):
     def _construct_log_struct(self, query_job: bigquery.QueryJob, result) -> dict:
+        """Construct a logging structure for BigQuery query execution.
+
+        Args:
+            query_job: BigQuery QueryJob containing query information
+            result: Query result object containing execution statistics
+
+        Returns:
+            dict: Structured log data including query text, execution time, timestamp,
+                 rows returned, user info, and transaction ID
+        """
         return {
             "query_text": query_job.query,
             "execution_time": query_job.slot_millis,
@@ -527,6 +747,17 @@ class BigQueryDatabase(Database):
         }
 
     def fetch_data(self, query: str) -> pd.DataFrame:
+        """Execute a query and fetch results from BigQuery.
+
+        Args:
+            query: SQL query to execute
+
+        Returns:
+            pd.DataFrame: Query results as a pandas DataFrame
+
+        Raises:
+            ValueError: If query validation fails
+        """
         # Validate query with a dry run
         job_config = bigquery.QueryJobConfig(dry_run=True)
         try:
@@ -546,6 +777,12 @@ class BigQueryDatabase(Database):
         return df
 
     def get_schema_metadata(self) -> List[Dict]:
+        """Get metadata for all tables in the BigQuery dataset.
+
+        Returns:
+            List[Dict]: List of dictionaries containing table metadata including:
+                       table name, columns, data types, and nullability
+        """
         prefix = f"{self.connection_params.project_id}.region-{self.connection_params.location}"
         query = f"""
         SELECT
