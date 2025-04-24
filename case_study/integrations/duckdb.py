@@ -11,6 +11,7 @@ from case_study.integrations.database import ConnectionConfig
 from case_study.utils.settings import DUCKDB_CONFIG
 from case_study.utils.logger import get_logger
 import os
+import re
 
 # Initialize logger for DuckDB operations
 logger = get_logger("duckdb-integrator")
@@ -339,6 +340,92 @@ class DuckDBIntegrator:
 
         raise ValueError(f"Unknown source type: {source}")
 
+    def _rename_duplicate_columns(self, result, query):
+        """
+        Rename duplicate columns with suffix _1 to their corresponding CTE names.
+
+        Args:
+            result: pd.DataFrame - Resulting DataFrame from the query
+        """
+        logger.info("Starting duplicate column renaming process")
+        # Check for duplicate columns with suffix _1 and rename them with CTE names
+        column_names = list(result.columns)
+        duplicate_cols = [col for col in column_names if col.endswith("_1")]
+
+        if duplicate_cols:
+            logger.info(
+                f"Found {len(duplicate_cols)} duplicate columns: {duplicate_cols}"
+            )
+            # Try to extract CTE names from the query
+            cte_pattern = r"WITH\s+([a-zA-Z0-9_]+)\s+AS\s*\("
+            cte_names = re.findall(cte_pattern, query, re.IGNORECASE)
+            logger.debug(f"Extracted CTE names from query: {cte_names}")
+
+            # Look for the last join in the query to identify the CTEs being joined
+            join_pattern = r"(?:FROM|JOIN)\s+([a-zA-Z0-9_]+)\s+(?:AS\s+)?([a-zA-Z0-9_]+)?\s+(?:INNER\s+|LEFT\s+|RIGHT\s+|FULL\s+)?JOIN\s+([a-zA-Z0-9_]+)\s+(?:AS\s+)?([a-zA-Z0-9_]+)?"
+            joins = re.findall(join_pattern, query, re.IGNORECASE)
+
+            logger.debug(f"Found {len(joins)} JOIN patterns in query: {joins}")
+
+            # Get the last join if available
+            last_join = joins[-1] if joins else None
+            if last_join:
+                logger.debug(f"Using last JOIN pattern: {last_join}")
+            else:
+                logger.warning("No JOIN patterns found in query")
+
+            # Extract CTE names from the last join
+            join_ctes = []
+            if last_join:
+                for item in last_join:
+                    if item and item not in [
+                        "ON",
+                        "USING",
+                        "LEFT",
+                        "JOIN",
+                        "RIGHT",
+                        "INNER",
+                        "FULL",
+                        "OUTER",
+                    ]:
+                        join_ctes.append(item)
+                logger.debug(f"Extracted CTE names from last JOIN: {join_ctes}")
+
+            # Use available CTE names to rename columns
+            for col in duplicate_cols:
+                base_col = col[:-2]  # Remove _1 suffix
+                logger.debug(f"Processing duplicate column: {col} (base: {base_col})")
+
+                # Try to use the second CTE name from the last join if available
+                if len(join_ctes) >= 2:
+                    new_col = f"{base_col}_{join_ctes[-1]}"
+                    new_base_col = f"{base_col}_{join_ctes[0]}"
+                    logger.info(
+                        f"Renaming column '{col}' to '{new_col}' AND '{base_col}' to '{new_base_col}' using JOIN CTE name"
+                    )
+                    result = result.rename(
+                        columns={col: new_col, base_col: new_base_col}
+                    )
+                # Fallback to using any available CTE name
+                elif cte_names and len(cte_names) > 1:
+                    new_col = f"{base_col}_{cte_names[-1]}"
+                    new_base_col = f"{base_col}_{cte_names[0]}"
+                    logger.info(
+                        f"Renaming column '{col}' to '{new_col}' AND '{base_col}' to '{new_base_col}' using WITH CTE name"
+                    )
+                    result = result.rename(
+                        columns={col: new_col, base_col: new_base_col}
+                    )
+                else:
+                    logger.warning(
+                        f"No suitable CTE names found for renaming column '{col}'"
+                    )
+        else:
+            logger.debug("No duplicate columns found that need renaming")
+            return result
+
+        return result
+
     def run_query(self, query):
         """
         Execute an analysis query that can reference both BigQuery and PostgreSQL.
@@ -502,6 +589,7 @@ class DuckDBIntegrator:
                 },
             )
 
+            result = self._rename_duplicate_columns(result, query)
             return result
 
         except Exception as e:

@@ -9,7 +9,7 @@ The objective of this case study is to design and present a solution that enable
 ## Tasks
 - [x] Develop a Python code to query different database systems.
 - [x] Add a function to join results from both systems.
-- [x] Handle duplicate columns.
+- [x] Handle duplicate columns ??? jak je toto myšleno?
 - [x] Prepare a testing script for queries and join definition - show more complex queries.
 - [ ] Call the LLM of your choice that will provide metadata for the resulting table using context information from source tables (table names, columns, comments if available).
 - [x] Alternatively, you can use LLM/AI agent to create the join from human input. In that case, input will just define what tables to join and the agent will decide how to join them.
