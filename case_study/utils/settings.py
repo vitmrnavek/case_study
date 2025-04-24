@@ -42,7 +42,7 @@ LOGGING = {
     "disable_existing_loggers": False,
     "project_id": CONFIG["logger_project_id"],
     "credentials_path": CONFIG["logger_credentials_path"],
-    "default_level": "INFO",
+    "default_level": CONFIG["logger_default_level"],
     "local_logging": True,  # Enable console logging by default
 }
 

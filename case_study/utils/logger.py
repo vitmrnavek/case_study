@@ -120,6 +120,7 @@ def get_logger(
         project_id=LOGGING["project_id"],
         credentials_path=LOGGING["credentials_path"],
         logger_name=logger_name,
+        log_level=LOGGING["default_level"],
     )
 
 
